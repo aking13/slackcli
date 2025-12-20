@@ -114,7 +114,16 @@ export function formatMessage(
     }
     output += '\n';
   }
-  
+
+  // Video transcript
+  if (msg.transcript) {
+    output += `${indentStr}  ${chalk.magenta('📹 Video Transcript:')}\n`;
+    const transcriptLines = msg.transcript.split('\n');
+    transcriptLines.forEach(line => {
+      output += `${indentStr}    ${chalk.italic(line)}\n`;
+    });
+  }
+
   // Reactions
   if (msg.reactions && msg.reactions.length > 0) {
     const reactionsStr = msg.reactions

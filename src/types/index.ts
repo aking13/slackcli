@@ -61,6 +61,30 @@ export interface SlackUser {
   };
 }
 
+// Video transcription types
+export interface SlackTranscription {
+  status: 'processing' | 'complete' | 'error' | 'none';
+  locale?: string;
+  preview?: {
+    content: string;
+    has_more: boolean;
+  };
+}
+
+export interface SlackFile {
+  id: string;
+  name?: string;
+  title?: string;
+  mimetype?: string;
+  filetype?: string;
+  subtype?: string;
+  pretty_type?: string;
+  url_private?: string;
+  url_private_download?: string;
+  vtt?: string;
+  transcription?: SlackTranscription;
+}
+
 export interface SlackMessage {
   type: string;
   user?: string;
@@ -69,6 +93,8 @@ export interface SlackMessage {
   ts: string;
   thread_ts?: string;
   reply_count?: number;
+  files?: SlackFile[];
+  transcript?: string;
   reactions?: Array<{
     name: string;
     count: number;
@@ -102,6 +128,7 @@ export interface ConversationReadOptions {
   oldest?: string;
   latest?: string;
   workspace?: string;
+  includeTranscripts?: boolean;
 }
 
 export interface MessageSendOptions {

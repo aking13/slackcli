@@ -1,8 +1,10 @@
 import { Command } from 'commander';
-import ora from 'ora';
+import ora, { type Ora } from 'ora';
 import { getAuthenticatedClient } from '../lib/auth.ts';
 import { error, formatChannelList, formatConversationHistory } from '../lib/formatter.ts';
+import { parseVttToText } from '../lib/vtt-parser.ts';
 import type { SlackChannel, SlackMessage, SlackUser } from '../types/index.ts';
+import type { SlackClient } from '../lib/slack-client.ts';
 
 export function createConversationsCommand(): Command {
   const conversations = new Command('conversations')
@@ -69,6 +71,8 @@ export function createConversationsCommand(): Command {
     .option('--latest <timestamp>', 'End of time range')
     .option('--workspace <id|name>', 'Workspace to use')
     .option('--json', 'Output in JSON format (includes timestamps for replies)', false)
+    .option('--include-transcripts', 'Include video transcripts in output', true)
+    .option('--no-include-transcripts', 'Exclude video transcripts from output')
     .action(async (channelId, options) => {
       const spinner = ora('Fetching messages...').start();
 
@@ -123,6 +127,11 @@ export function createConversationsCommand(): Command {
           });
         }
 
+        // Fetch video transcripts if enabled
+        if (options.includeTranscripts) {
+          await fetchTranscriptsForMessages(client, messages, spinner);
+        }
+
         spinner.succeed(`Found ${messages.length} messages`);
 
         // Output in JSON format if requested
@@ -139,6 +148,8 @@ export function createConversationsCommand(): Command {
               reply_count: msg.reply_count,
               reactions: msg.reactions,
               bot_id: msg.bot_id,
+              files: msg.files,
+              transcript: msg.transcript,
             })),
             users: Array.from(users.values()).map(u => ({
               id: u.id,
@@ -158,5 +169,41 @@ export function createConversationsCommand(): Command {
     });
 
   return conversations;
+}
+
+// Fetch VTT transcripts for messages containing video files (mutates messages in place)
+async function fetchTranscriptsForMessages(
+  client: SlackClient,
+  messages: SlackMessage[],
+  spinner: Ora
+): Promise<void> {
+  const videosToFetch = messages.filter(
+    msg => msg.files?.some(f => f.transcription?.status === 'complete' && f.vtt)
+  );
+
+  if (videosToFetch.length === 0) return;
+
+  spinner.text = `Fetching transcripts for ${videosToFetch.length} video(s)...`;
+
+  for (const msg of videosToFetch) {
+    const transcripts: string[] = [];
+
+    for (const file of msg.files || []) {
+      if (file.transcription?.status === 'complete' && file.vtt) {
+        try {
+          const vttContent = await client.fetchFileContent(file.vtt);
+          const text = parseVttToText(vttContent);
+          if (text) transcripts.push(text);
+        } catch (error) {
+          // Skip failed transcripts
+          console.error(`Failed to fetch transcript for file ${file.id}`);
+        }
+      }
+    }
+
+    if (transcripts.length > 0) {
+      msg.transcript = transcripts.join('\n\n');
+    }
+  }
 }
 
