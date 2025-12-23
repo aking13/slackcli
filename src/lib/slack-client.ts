@@ -171,5 +171,40 @@ export class SlackClient {
   async openConversation(users: string): Promise<any> {
     return this.request('conversations.open', { users });
   }
+
+  // Fetch file content (for VTT transcripts, etc.)
+  async fetchFileContent(url: string): Promise<string> {
+    try {
+      let headers: Record<string, string>;
+
+      if (this.config.auth_type === 'standard') {
+        // Standard auth: use Bearer token
+        headers = {
+          'Authorization': `Bearer ${this.config.token}`,
+          'User-Agent': 'Mozilla/5.0 (compatible; SlackCLI/0.1.0)',
+        };
+      } else {
+        // Browser auth: use Cookie header with xoxd token
+        const encodedXoxdToken = encodeURIComponent(this.config.xoxd_token);
+        headers = {
+          'Cookie': `d=${encodedXoxdToken}`,
+          'User-Agent': 'Mozilla/5.0 (compatible; SlackCLI/0.1.0)',
+        };
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.text();
+    } catch (error: any) {
+      throw new Error(`Failed to fetch file: ${error.message}`);
+    }
+  }
 }
 
