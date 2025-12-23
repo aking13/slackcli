@@ -140,21 +140,78 @@ export function formatMessage(
   return output;
 }
 
+// Format a thread reply with tree structure
+function formatThreadReply(
+  msg: SlackMessage,
+  users: Map<string, SlackUser>,
+  isLast: boolean
+): string {
+  const prefix = isLast ? '└─' : '├─';
+  const continuePrefix = isLast ? '   ' : '│  ';
+  const user = msg.user ? users.get(msg.user) : null;
+  const userName = user?.real_name || user?.name || msg.bot_id || 'Unknown';
+  const timestamp = formatTimestamp(msg.ts);
+
+  let output = `  ${chalk.dim(prefix)} ${chalk.dim(`[${timestamp}]`)} ${chalk.bold(`@${userName}`)}\n`;
+
+  // Message text
+  const textLines = msg.text.split('\n');
+  textLines.forEach(line => {
+    output += `  ${chalk.dim(continuePrefix)}   ${line}\n`;
+  });
+
+  // Show timestamps
+  output += `  ${chalk.dim(continuePrefix)}   ${chalk.dim(`ts: ${msg.ts} | thread_ts: ${msg.thread_ts}`)}\n`;
+
+  // Video transcript
+  if (msg.transcript) {
+    output += `  ${chalk.dim(continuePrefix)}   ${chalk.magenta('📹 Video Transcript:')}\n`;
+    const transcriptLines = msg.transcript.split('\n');
+    transcriptLines.forEach(line => {
+      output += `  ${chalk.dim(continuePrefix)}     ${chalk.italic(line)}\n`;
+    });
+  }
+
+  // Reactions
+  if (msg.reactions && msg.reactions.length > 0) {
+    const reactionsStr = msg.reactions
+      .map(r => `${r.name} ${r.count}`)
+      .join('  ');
+    output += `  ${chalk.dim(continuePrefix)}   ${chalk.dim(reactionsStr)}\n`;
+  }
+
+  return output;
+}
+
 // Format conversation history
 export function formatConversationHistory(
   channelName: string,
   messages: SlackMessage[],
-  users: Map<string, SlackUser>
+  users: Map<string, SlackUser>,
+  includeThreads: boolean = false
 ): string {
   let output = chalk.bold(`💬 #${channelName} (${messages.length} messages)\n\n`);
-  
+
   messages.forEach((msg, idx) => {
     output += formatMessage(msg, users);
+
+    // Render thread replies if present
+    if (includeThreads && msg.thread_replies && msg.thread_replies.length > 0) {
+      output += `  ${chalk.cyan(`💬 ${msg.thread_replies.length} replies:`)}\n\n`;
+      msg.thread_replies.forEach((reply, replyIdx) => {
+        const isLast = replyIdx === msg.thread_replies!.length - 1;
+        output += formatThreadReply(reply, users, isLast);
+        if (!isLast) {
+          output += `  ${chalk.dim('│')}\n`;
+        }
+      });
+    }
+
     if (idx < messages.length - 1) {
       output += '\n';
     }
   });
-  
+
   return output;
 }
 
