@@ -73,6 +73,7 @@ export function createConversationsCommand(): Command {
     .option('--json', 'Output in JSON format (includes timestamps for replies)', false)
     .option('--include-transcripts', 'Include video transcripts in output', true)
     .option('--no-include-transcripts', 'Exclude video transcripts from output')
+    .option('--include-threads', 'Expand and include thread replies inline', false)
     .action(async (channelId, options) => {
       const spinner = ora('Fetching messages...').start();
 
@@ -132,25 +133,34 @@ export function createConversationsCommand(): Command {
           await fetchTranscriptsForMessages(client, messages, spinner);
         }
 
+        // Fetch thread replies if enabled
+        if (options.includeThreads) {
+          await fetchThreadRepliesForMessages(client, channelId, messages, users, spinner);
+        }
+
         spinner.succeed(`Found ${messages.length} messages`);
 
         // Output in JSON format if requested
         if (options.json) {
+          const formatMessageForJson = (msg: SlackMessage) => ({
+            ts: msg.ts,
+            thread_ts: msg.thread_ts,
+            user: msg.user,
+            text: msg.text,
+            type: msg.type,
+            reply_count: msg.reply_count,
+            is_thread_parent: (msg.reply_count ?? 0) > 0,
+            reactions: msg.reactions,
+            bot_id: msg.bot_id,
+            files: msg.files,
+            transcript: msg.transcript,
+            thread_replies: msg.thread_replies?.map(formatMessageForJson) ?? null,
+          });
+
           console.log(JSON.stringify({
             channel_id: channelId,
             message_count: messages.length,
-            messages: messages.map(msg => ({
-              ts: msg.ts,
-              thread_ts: msg.thread_ts,
-              user: msg.user,
-              text: msg.text,
-              type: msg.type,
-              reply_count: msg.reply_count,
-              reactions: msg.reactions,
-              bot_id: msg.bot_id,
-              files: msg.files,
-              transcript: msg.transcript,
-            })),
+            messages: messages.map(formatMessageForJson),
             users: Array.from(users.values()).map(u => ({
               id: u.id,
               name: u.name,
@@ -159,7 +169,7 @@ export function createConversationsCommand(): Command {
             })),
           }, null, 2));
         } else {
-          console.log('\n' + formatConversationHistory(channelId, messages, users));
+          console.log('\n' + formatConversationHistory(channelId, messages, users, options.includeThreads));
         }
       } catch (err: any) {
         spinner.fail('Failed to fetch messages');
@@ -203,6 +213,49 @@ async function fetchTranscriptsForMessages(
 
     if (transcripts.length > 0) {
       msg.transcript = transcripts.join('\n\n');
+    }
+  }
+}
+
+// Fetch thread replies for messages with threads (mutates messages in place)
+async function fetchThreadRepliesForMessages(
+  client: SlackClient,
+  channelId: string,
+  messages: SlackMessage[],
+  users: Map<string, SlackUser>,
+  spinner: Ora
+): Promise<void> {
+  const threadParents = messages.filter(msg => (msg.reply_count ?? 0) > 0);
+
+  if (threadParents.length === 0) return;
+
+  spinner.text = `Fetching replies for ${threadParents.length} thread(s)...`;
+
+  for (const msg of threadParents) {
+    try {
+      const response = await client.getConversationReplies(channelId, msg.ts, {});
+      const replies: SlackMessage[] = response.messages || [];
+
+      // First message is the parent, rest are replies
+      const threadReplies = replies.slice(1);
+
+      // Collect user IDs from replies
+      for (const reply of threadReplies) {
+        if (reply.user && !users.has(reply.user)) {
+          try {
+            const userResponse = await client.getUserInfo(reply.user);
+            if (userResponse.ok && userResponse.user) {
+              users.set(reply.user, userResponse.user);
+            }
+          } catch (error) {
+            console.error(`Failed to fetch user ${reply.user}`);
+          }
+        }
+      }
+
+      msg.thread_replies = threadReplies;
+    } catch (error) {
+      console.error(`Failed to fetch thread replies for message ${msg.ts}`);
     }
   }
 }

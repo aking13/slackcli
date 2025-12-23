@@ -95,6 +95,7 @@ export interface SlackMessage {
   reply_count?: number;
   files?: SlackFile[];
   transcript?: string;
+  thread_replies?: SlackMessage[];
   reactions?: Array<{
     name: string;
     count: number;
@@ -129,6 +130,7 @@ export interface ConversationReadOptions {
   latest?: string;
   workspace?: string;
   includeTranscripts?: boolean;
+  includeThreads?: boolean;
 }
 
 export interface MessageSendOptions {
