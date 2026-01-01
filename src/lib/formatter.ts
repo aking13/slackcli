@@ -1,8 +1,8 @@
 import chalk from 'chalk';
-import type { SlackChannel, SlackMessage, SlackUser, WorkspaceConfig } from '../types/index.ts';
+import type { SlackChannel, SlackFile, SlackMessage, SlackUser, WorkspaceConfig } from '../types/index.ts';
 
 // Get icon for file type
-function getFileIcon(filetype?: string): string {
+export function getFileIcon(filetype?: string): string {
   const icons: Record<string, string> = {
     'png': '🖼️', 'jpg': '🖼️', 'jpeg': '🖼️', 'gif': '🖼️', 'webp': '🖼️',
     'pdf': '📄', 'docx': '📝', 'doc': '📝',
@@ -248,6 +248,66 @@ export function formatConversationHistory(
     if (idx < messages.length - 1) {
       output += '\n';
     }
+  });
+
+  return output;
+}
+
+// Format file size in human readable format
+export function formatFileSize(bytes?: number): string {
+  if (!bytes) return 'unknown size';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let unitIndex = 0;
+  let size = bytes;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex++;
+  }
+  return `${size.toFixed(1)} ${units[unitIndex]}`;
+}
+
+// Format file list
+export function formatFileList(
+  files: SlackFile[],
+  users: Map<string, SlackUser>
+): string {
+  let output = chalk.bold(`📁 Files (${files.length})\n\n`);
+
+  if (files.length === 0) {
+    output += chalk.dim('  No files found.\n');
+    return output;
+  }
+
+  files.forEach((file, idx) => {
+    const icon = getFileIcon(file.filetype);
+    const name = file.name || file.title || 'Untitled';
+    const size = formatFileSize(file.size);
+    const user = file.user ? users.get(file.user) : null;
+    const userName = user?.real_name || user?.name || file.user || 'Unknown';
+
+    // File creation date
+    const created = file.created
+      ? new Date(file.created * 1000).toLocaleString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        })
+      : 'Unknown date';
+
+    output += `${chalk.dim(`${idx + 1}.`)} ${icon} ${chalk.bold(name)}\n`;
+    output += `   ${chalk.dim(`ID: ${file.id}`)}\n`;
+    output += `   ${chalk.dim(`Type: ${file.pretty_type || file.filetype || 'unknown'} | Size: ${size}`)}\n`;
+    output += `   ${chalk.dim(`By: @${userName} | ${created}`)}\n`;
+
+    const downloadUrl = file.url_private_download || file.url_private;
+    if (downloadUrl) {
+      output += `   ${chalk.dim(`URL: ${downloadUrl}`)}\n`;
+    }
+
+    output += '\n';
   });
 
   return output;

@@ -85,6 +85,16 @@ export interface SlackFile {
   mp4?: string; // Direct mp4 URL for videos
   vtt?: string;
   transcription?: SlackTranscription;
+  // Additional fields from files.list API
+  created?: number;
+  timestamp?: number;
+  size?: number;
+  user?: string;
+  channels?: string[];
+  groups?: string[];
+  ims?: string[];
+  is_external?: boolean;
+  is_public?: boolean;
 }
 
 export interface SlackMessage {
