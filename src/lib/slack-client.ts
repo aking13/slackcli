@@ -172,6 +172,24 @@ export class SlackClient {
     return this.request('conversations.open', { users });
   }
 
+  // List files
+  async listFiles(options: {
+    channel?: string;
+    user?: string;
+    types?: string;
+    count?: number;
+    page?: number;
+  } = {}): Promise<any> {
+    const params: Record<string, any> = {};
+    if (options.channel) params.channel = options.channel;
+    if (options.user) params.user = options.user;
+    if (options.types) params.types = options.types;
+    if (options.count) params.count = options.count;
+    if (options.page) params.page = options.page;
+
+    return this.request('files.list', params);
+  }
+
   // Get headers for file requests (shared by fetchFileContent and fetchFileBinary)
   private getFileHeaders(): Record<string, string> {
     if (this.config.auth_type === 'standard') {
