@@ -62,7 +62,7 @@ export function createConversationsCommand(): Command {
   // Read conversation history
   conversations
     .command('read')
-    .description('Read conversation history or specific thread')
+    .description('Read conversation history or specific thread (newest messages first)')
     .argument('<channel-id>', 'Channel ID to read from')
     .option('--thread-ts <timestamp>', 'Thread timestamp to read specific thread')
     .option('--exclude-replies', 'Exclude threaded replies (only top-level messages)', false)
