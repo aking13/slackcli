@@ -66,7 +66,8 @@ export function createConversationsCommand(): Command {
     .argument('<channel-id>', 'Channel ID to read from')
     .option('--thread-ts <timestamp>', 'Thread timestamp to read specific thread')
     .option('--exclude-replies', 'Exclude threaded replies (only top-level messages)', false)
-    .option('--limit <number>', 'Number of messages to return', '100')
+    .option('--limit <number>', 'Number of messages to return', '20')
+    .option('--oldest-first', 'Return messages oldest-first (default is newest-first)', false)
     .option('--oldest <timestamp>', 'Start of time range')
     .option('--latest <timestamp>', 'End of time range')
     .option('--workspace <id|name>', 'Workspace to use')
@@ -108,8 +109,10 @@ export function createConversationsCommand(): Command {
           }
         }
 
-        // Reverse to show oldest first
-        messages.reverse();
+        // Reverse to show oldest first (only if --oldest-first flag is set)
+        if (options.oldestFirst) {
+          messages.reverse();
+        }
 
         // Fetch user info for messages
         const userIds = new Set<string>();
