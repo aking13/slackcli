@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import type { SlackChannel, SlackFile, SlackMessage, SlackUser, WorkspaceConfig } from '../types/index.ts';
+import type { SlackChannel, SlackFile, SlackMessage, SlackScheduledMessage, SlackUser, WorkspaceConfig } from '../types/index.ts';
 
 // Get icon for file type
 export function getFileIcon(filetype?: string): string {
@@ -307,6 +307,43 @@ export function formatFileList(
       output += `   ${chalk.dim(`URL: ${downloadUrl}`)}\n`;
     }
 
+    output += '\n';
+  });
+
+  return output;
+}
+
+// Format scheduled messages list
+export function formatScheduledMessages(
+  messages: SlackScheduledMessage[],
+  channels: Map<string, string>
+): string {
+  let output = chalk.bold(`📅 Scheduled Messages (${messages.length})\n\n`);
+
+  if (messages.length === 0) {
+    output += chalk.dim('  No scheduled messages found.\n');
+    return output;
+  }
+
+  messages.forEach((msg, idx) => {
+    const postAt = new Date(msg.post_at * 1000);
+    const createdAt = new Date(msg.date_created * 1000);
+    const channelName = channels.get(msg.channel_id) || msg.channel_id;
+
+    const dateOptions: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    };
+
+    output += `${chalk.dim(`${idx + 1}.`)} ${chalk.bold('Scheduled for:')} ${chalk.cyan(postAt.toLocaleString('en-US', dateOptions))}\n`;
+    output += `   ${chalk.dim(`ID: ${msg.id}`)}\n`;
+    output += `   ${chalk.dim(`Channel: #${channelName} (${msg.channel_id})`)}\n`;
+    output += `   ${chalk.dim(`Created: ${createdAt.toLocaleString('en-US', dateOptions)}`)}\n`;
+    output += `   ${chalk.white(msg.text)}\n`;
     output += '\n';
   });
 

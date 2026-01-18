@@ -202,3 +202,12 @@ export interface SlackSearchResult {
   matches: SlackSearchMatch[];
 }
 
+// Scheduled message types
+export interface SlackScheduledMessage {
+  id: string;
+  channel_id: string;
+  post_at: number;
+  date_created: number;
+  text: string;
+}
+

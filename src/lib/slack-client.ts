@@ -275,5 +275,41 @@ export class SlackClient {
       throw new Error(`Failed to fetch file: ${error.message}`);
     }
   }
+
+  // Schedule a message for future delivery
+  async scheduleMessage(channel: string, text: string, postAt: number, options: {
+    thread_ts?: string;
+  } = {}): Promise<any> {
+    const params: Record<string, any> = { channel, text, post_at: postAt };
+    if (options.thread_ts) params.thread_ts = options.thread_ts;
+
+    return this.request('chat.scheduleMessage', params);
+  }
+
+  // List scheduled messages
+  async listScheduledMessages(options: {
+    channel?: string;
+    cursor?: string;
+    limit?: number;
+    oldest?: number;
+    latest?: number;
+  } = {}): Promise<any> {
+    const params: Record<string, any> = {};
+    if (options.channel) params.channel = options.channel;
+    if (options.cursor) params.cursor = options.cursor;
+    if (options.limit) params.limit = options.limit;
+    if (options.oldest) params.oldest = options.oldest;
+    if (options.latest) params.latest = options.latest;
+
+    return this.request('chat.scheduledMessages.list', params);
+  }
+
+  // Delete a scheduled message
+  async deleteScheduledMessage(channel: string, scheduledMessageId: string): Promise<any> {
+    return this.request('chat.deleteScheduledMessage', {
+      channel,
+      scheduled_message_id: scheduledMessageId,
+    });
+  }
 }
 
