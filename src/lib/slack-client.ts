@@ -311,5 +311,25 @@ export class SlackClient {
       scheduled_message_id: scheduledMessageId,
     });
   }
+
+  // Get unread counts for all channels (internal API)
+  async getUserCounts(): Promise<any> {
+    return this.request('users.counts', {});
+  }
+
+  // Get detailed unread info including last_read timestamps (internal API)
+  async getClientCounts(): Promise<any> {
+    return this.request('client.counts', {});
+  }
+
+  // Mark a conversation as read up to a given timestamp
+  async markConversation(channel: string, ts: string): Promise<any> {
+    return this.request('conversations.mark', { channel, ts });
+  }
+
+  // Get conversation info (includes last_read)
+  async getConversationInfo(channel: string): Promise<any> {
+    return this.request('conversations.info', { channel });
+  }
 }
 

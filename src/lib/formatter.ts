@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import type { SlackChannel, SlackFile, SlackMessage, SlackScheduledMessage, SlackUser, WorkspaceConfig } from '../types/index.ts';
+import type { SlackChannel, SlackFile, SlackMessage, SlackScheduledMessage, SlackUnreadChannel, SlackUser, WorkspaceConfig } from '../types/index.ts';
 
 // Get icon for file type
 export function getFileIcon(filetype?: string): string {
@@ -309,6 +309,84 @@ export function formatFileList(
 
     output += '\n';
   });
+
+  return output;
+}
+
+// Format unread channels summary
+export function formatUnreadSummary(
+  channels: SlackUnreadChannel[],
+  users: Map<string, SlackUser>
+): string {
+  const totalUnread = channels.reduce((sum, ch) => sum + ch.unread_count, 0);
+  const totalMentions = channels.reduce((sum, ch) => sum + ch.mention_count, 0);
+
+  let output = chalk.bold(`📬 Unread Messages\n`);
+  output += chalk.dim(`   ${totalUnread} unread across ${channels.length} conversations`);
+  if (totalMentions > 0) {
+    output += chalk.yellow(` (${totalMentions} mentions)`);
+  }
+  output += '\n\n';
+
+  if (channels.length === 0) {
+    output += chalk.green('  All caught up! No unread messages.\n');
+    return output;
+  }
+
+  // Group by type
+  const dms = channels.filter(ch => ch.is_im);
+  const groups = channels.filter(ch => ch.is_mpim);
+  const privateChannels = channels.filter(ch => ch.is_private && !ch.is_mpim);
+  const publicChannels = channels.filter(ch => !ch.is_im && !ch.is_mpim && !ch.is_private);
+
+  const formatChannel = (ch: SlackUnreadChannel, prefix: string = '') => {
+    const mentions = ch.mention_count > 0 ? chalk.yellow(` @${ch.mention_count}`) : '';
+    const muted = ch.is_muted ? chalk.dim(' (muted)') : '';
+    let name = ch.name;
+
+    // For DMs, try to get user's real name
+    if (ch.is_im && ch.name) {
+      // DM names are often just user IDs, try to resolve
+      const user = users.get(ch.id);
+      if (user?.real_name) {
+        name = user.real_name;
+      }
+    }
+
+    return `  ${prefix}${chalk.bold(name)} ${chalk.cyan(`(${ch.unread_count})`)}${mentions}${muted}\n` +
+           `     ${chalk.dim(`ID: ${ch.id}`)}\n`;
+  };
+
+  if (publicChannels.length > 0) {
+    output += chalk.cyan('Public Channels:\n');
+    publicChannels.forEach(ch => {
+      output += formatChannel(ch, '#');
+    });
+    output += '\n';
+  }
+
+  if (privateChannels.length > 0) {
+    output += chalk.yellow('Private Channels:\n');
+    privateChannels.forEach(ch => {
+      output += formatChannel(ch, '🔒 ');
+    });
+    output += '\n';
+  }
+
+  if (groups.length > 0) {
+    output += chalk.magenta('Group Messages:\n');
+    groups.forEach(ch => {
+      output += formatChannel(ch, '👥 ');
+    });
+    output += '\n';
+  }
+
+  if (dms.length > 0) {
+    output += chalk.blue('Direct Messages:\n');
+    dms.forEach(ch => {
+      output += formatChannel(ch, '👤 ');
+    });
+  }
 
   return output;
 }

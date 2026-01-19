@@ -211,3 +211,17 @@ export interface SlackScheduledMessage {
   text: string;
 }
 
+// Unread channel info from users.counts
+export interface SlackUnreadChannel {
+  id: string;
+  name: string;
+  unread_count: number;
+  unread_count_display: number;
+  mention_count: number;
+  mention_count_display: number;
+  is_im?: boolean;
+  is_mpim?: boolean;
+  is_private?: boolean;
+  is_muted?: boolean;
+}
+

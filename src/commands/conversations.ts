@@ -1,9 +1,9 @@
 import { Command } from 'commander';
 import ora, { type Ora } from 'ora';
 import { getAuthenticatedClient } from '../lib/auth.ts';
-import { error, formatChannelList, formatConversationHistory } from '../lib/formatter.ts';
+import { error, formatChannelList, formatConversationHistory, formatUnreadSummary, formatMessage, success } from '../lib/formatter.ts';
 import { parseVttToText } from '../lib/vtt-parser.ts';
-import type { SlackChannel, SlackMessage, SlackUser } from '../types/index.ts';
+import type { SlackChannel, SlackMessage, SlackUnreadChannel, SlackUser } from '../types/index.ts';
 import type { SlackClient } from '../lib/slack-client.ts';
 
 export function createConversationsCommand(): Command {
@@ -176,6 +176,182 @@ export function createConversationsCommand(): Command {
         }
       } catch (err: any) {
         spinner.fail('Failed to fetch messages');
+        error(err.message);
+        process.exit(1);
+      }
+    });
+
+  // View unread messages
+  conversations
+    .command('unread')
+    .description('View unread messages across all conversations')
+    .option('--channel <id>', 'Show unread messages from a specific channel only')
+    .option('--show', 'Show the actual unread messages (not just summary)', false)
+    .option('--mark-read', 'Mark messages as read after viewing', false)
+    .option('--include-muted', 'Include muted channels', false)
+    .option('--workspace <id|name>', 'Workspace to use')
+    .action(async (options) => {
+      const spinner = ora('Fetching unread counts...').start();
+
+      try {
+        const client = await getAuthenticatedClient(options.workspace);
+
+        // Get unread counts for all channels
+        const countsResponse = await client.getUserCounts();
+
+        // Combine all channel types
+        const allChannels: SlackUnreadChannel[] = [
+          ...(countsResponse.channels || []),
+        ];
+
+        // Filter to only channels with unreads
+        let unreadChannels = allChannels.filter(ch => ch.unread_count > 0);
+
+        // Filter out muted unless --include-muted
+        if (!options.includeMuted) {
+          unreadChannels = unreadChannels.filter(ch => !ch.is_muted);
+        }
+
+        // If specific channel requested, filter to just that one
+        if (options.channel) {
+          unreadChannels = unreadChannels.filter(ch => ch.id === options.channel);
+          if (unreadChannels.length === 0) {
+            // Check if channel exists but has no unreads
+            const channelExists = allChannels.some(ch => ch.id === options.channel);
+            if (channelExists) {
+              spinner.succeed('No unread messages in this channel');
+              return;
+            } else {
+              spinner.fail('Channel not found in your conversations');
+              process.exit(1);
+            }
+          }
+        }
+
+        // Sort by unread count (most unreads first)
+        unreadChannels.sort((a, b) => b.unread_count - a.unread_count);
+
+        spinner.stop();
+
+        // If just showing summary (default)
+        if (!options.show) {
+          const users = new Map<string, SlackUser>();
+          console.log('\n' + formatUnreadSummary(unreadChannels, users));
+
+          if (unreadChannels.length > 0) {
+            console.log('Use --show to view the actual messages, or --mark-read to mark all as read.\n');
+          }
+          return;
+        }
+
+        // Show actual unread messages
+        const users = new Map<string, SlackUser>();
+        let totalMessagesShown = 0;
+        const latestTimestamps: Map<string, string> = new Map();
+
+        for (const channel of unreadChannels) {
+          spinner.start(`Fetching unread messages from ${channel.name}...`);
+
+          // Get the last_read timestamp for this channel
+          const infoResponse = await client.getConversationInfo(channel.id);
+          const lastRead = infoResponse.channel?.last_read || '0';
+
+          // Fetch messages since last_read
+          const historyResponse = await client.getConversationHistory(channel.id, {
+            oldest: lastRead,
+            limit: Math.min(channel.unread_count + 5, 100), // Fetch a few extra to be safe
+          });
+
+          const messages: SlackMessage[] = (historyResponse.messages || [])
+            .filter((msg: SlackMessage) => msg.ts > lastRead);
+
+          if (messages.length === 0) continue;
+
+          // Track the latest timestamp for marking as read
+          const latestTs = messages.reduce((max, msg) => msg.ts > max ? msg.ts : max, '0');
+          latestTimestamps.set(channel.id, latestTs);
+
+          // Collect user IDs
+          messages.forEach(msg => {
+            if (msg.user) users.set(msg.user, { id: msg.user } as SlackUser);
+          });
+
+          // Fetch user info
+          const userIds = [...new Set(messages.map(m => m.user).filter(Boolean))] as string[];
+          for (const userId of userIds) {
+            if (!users.get(userId)?.real_name) {
+              try {
+                const userResponse = await client.getUserInfo(userId);
+                if (userResponse.ok && userResponse.user) {
+                  users.set(userId, userResponse.user);
+                }
+              } catch {
+                // Skip failed user lookups
+              }
+            }
+          }
+
+          spinner.stop();
+
+          // Print channel header
+          const channelPrefix = channel.is_im ? '👤' : channel.is_mpim ? '👥' : channel.is_private ? '🔒' : '#';
+          console.log(`\n${channelPrefix} ${channel.name} (${messages.length} unread)\n`);
+
+          // Print messages (oldest first for readability)
+          messages.reverse().forEach(msg => {
+            console.log(formatMessage(msg, users));
+          });
+
+          totalMessagesShown += messages.length;
+        }
+
+        // Mark as read if requested
+        if (options.markRead && latestTimestamps.size > 0) {
+          spinner.start('Marking messages as read...');
+
+          for (const [channelId, latestTs] of latestTimestamps) {
+            try {
+              await client.markConversation(channelId, latestTs);
+            } catch (err) {
+              // Continue even if marking fails for one channel
+            }
+          }
+
+          spinner.succeed(`Marked ${latestTimestamps.size} conversation(s) as read`);
+        }
+
+        if (totalMessagesShown === 0) {
+          success('All caught up! No unread messages.');
+        }
+
+      } catch (err: any) {
+        spinner.fail('Failed to fetch unread messages');
+        error(err.message);
+        process.exit(1);
+      }
+    });
+
+  // Mark conversation as read
+  conversations
+    .command('mark-read')
+    .description('Mark a conversation as read')
+    .argument('<channel-id>', 'Channel ID to mark as read')
+    .option('--ts <timestamp>', 'Mark read up to this timestamp (default: now)')
+    .option('--workspace <id|name>', 'Workspace to use')
+    .action(async (channelId, options) => {
+      const spinner = ora('Marking conversation as read...').start();
+
+      try {
+        const client = await getAuthenticatedClient(options.workspace);
+
+        // Use provided timestamp or current time
+        const ts = options.ts || (Date.now() / 1000).toFixed(6);
+
+        await client.markConversation(channelId, ts);
+
+        spinner.succeed('Conversation marked as read');
+      } catch (err: any) {
+        spinner.fail('Failed to mark conversation as read');
         error(err.message);
         process.exit(1);
       }
