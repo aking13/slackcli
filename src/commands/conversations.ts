@@ -373,6 +373,33 @@ export function createConversationsCommand(): Command {
       }
     });
 
+  // Mark conversation/message as unread
+  conversations
+    .command('mark-unread')
+    .description('Mark a conversation as unread starting from a specific message')
+    .argument('<channel-id>', 'Channel ID to mark as unread')
+    .requiredOption('--ts <timestamp>', 'Message timestamp to mark as unread (this message and newer will be unread)')
+    .option('--workspace <id|name>', 'Workspace to use')
+    .action(async (channelId, options) => {
+      const spinner = ora('Marking conversation as unread...').start();
+
+      try {
+        const client = await getAuthenticatedClient(options.workspace);
+
+        // Set last_read to just before the target message timestamp
+        const targetTs = parseFloat(options.ts);
+        const markUnreadTs = (targetTs - 0.000001).toFixed(6);
+
+        await client.markConversation(channelId, markUnreadTs);
+
+        spinner.succeed('Conversation marked as unread');
+      } catch (err: any) {
+        spinner.fail('Failed to mark conversation as unread');
+        error(err.message);
+        process.exit(1);
+      }
+    });
+
   return conversations;
 }
 
