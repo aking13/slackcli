@@ -275,5 +275,71 @@ export class SlackClient {
       throw new Error(`Failed to fetch file: ${error.message}`);
     }
   }
+
+  // List drafts (browser auth only)
+  // By default returns only active drafts using is_active=true filter
+  async listDrafts(options: { all?: boolean } = {}): Promise<any> {
+    if (this.config.auth_type !== 'browser') {
+      throw new Error('Drafts API requires browser authentication (xoxc/xoxd tokens)');
+    }
+    const params: Record<string, any> = { limit: '100' };
+    if (!options.all) {
+      params.is_active = 'true';
+    }
+    return this.request('drafts.list', params);
+  }
+
+  // Create a draft (browser auth only)
+  async createDraft(options: {
+    channelId: string;
+    text: string;
+  }): Promise<any> {
+    if (this.config.auth_type !== 'browser') {
+      throw new Error('Drafts API requires browser authentication (xoxc/xoxd tokens)');
+    }
+
+    // Generate a UUID for client_msg_id (required by API)
+    const clientMsgId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+
+    // Create Block Kit formatted content
+    const blocks = JSON.stringify([{
+      type: 'rich_text',
+      elements: [{
+        type: 'rich_text_section',
+        elements: [{ type: 'text', text: options.text }]
+      }]
+    }]);
+
+    const destinations = JSON.stringify([{ channel_id: options.channelId }]);
+
+    return this.request('drafts.create', {
+      blocks,
+      destinations,
+      file_ids: '[]',
+      attachments: '',
+      is_from_composer: 'false',
+      client_msg_id: clientMsgId,
+    });
+  }
+
+  // Delete a draft (browser auth only)
+  async deleteDraft(draftId: string): Promise<any> {
+    if (this.config.auth_type !== 'browser') {
+      throw new Error('Drafts API requires browser authentication (xoxc/xoxd tokens)');
+    }
+
+    // client_last_updated_ts is required - use current timestamp
+    const clientLastUpdatedTs = `${Date.now()}.${Math.floor(Math.random() * 10000)}`;
+
+    return this.request('drafts.delete', {
+      draft_id: draftId,
+      client_last_updated_ts: clientLastUpdatedTs,
+      skip_file_deletion: 'false',
+    });
+  }
 }
 
