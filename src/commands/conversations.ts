@@ -199,9 +199,25 @@ export function createConversationsCommand(): Command {
         // Get unread counts for all channels
         const countsResponse = await client.getUserCounts();
 
+        // Normalize IMs to use unread_count (they use dm_count instead)
+        const normalizedIms = (countsResponse.ims || []).map((im: any) => ({
+          ...im,
+          unread_count: im.dm_count || 0,
+          unread_count_display: im.dm_count || 0,
+          is_im: true,
+        }));
+
+        // Normalize groups (MPIMs)
+        const normalizedGroups = (countsResponse.groups || []).map((g: any) => ({
+          ...g,
+          is_mpim: true,
+        }));
+
         // Combine all channel types
         const allChannels: SlackUnreadChannel[] = [
           ...(countsResponse.channels || []),
+          ...normalizedGroups,
+          ...normalizedIms,
         ];
 
         // Filter to only channels with unreads
