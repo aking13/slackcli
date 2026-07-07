@@ -86,6 +86,15 @@ export class SlackClient {
     return this.request('auth.test', {});
   }
 
+  // Workspace base URL (for constructing message permalinks). Known
+  // synchronously for browser auth; null for standard tokens.
+  getWorkspaceUrl(): string | null {
+    if (this.config.auth_type === 'browser') {
+      return this.config.workspace_url.replace(/\/$/, '');
+    }
+    return null;
+  }
+
   // List conversations
   async listConversations(options: {
     types?: string;
