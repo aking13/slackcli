@@ -130,9 +130,24 @@ slackcli conversations read C1234567890 --thread-ts=1234567890.123456
 # Read with custom limit
 slackcli conversations read C1234567890 --limit=50
 
-# Get JSON output (includes ts and thread_ts for replies)
+# Get JSON output (includes ts_iso, user_name and permalink per message)
 slackcli conversations read C1234567890 --json
+
+# Read a time window without epoch math: ISO date/datetime, durations
+# (36h, 7d, 2w) or working days (7wd). Paginates until the window is fully
+# covered (unless you pass --limit explicitly), so nothing gets dropped.
+slackcli conversations read C1234567890 --json --since 7wd
+slackcli conversations read C1234567890 --json --since 2026-07-01
+
+# Write output to a file instead of stdout — recommended for JSON consumed
+# by scripts (large outputs piped through shells can get truncated)
+slackcli conversations read C1234567890 --json --since 7d --output /tmp/msgs.json
 ```
+
+Note: Slack's history API returns thread replies only under their parent
+message, so `--since` cannot surface a fresh reply whose parent is older
+than the window. When that matters, fetch without `--since` (plus
+`--include-threads`) and filter client-side on the reply timestamps.
 
 ### Message Commands
 

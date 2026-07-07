@@ -1,7 +1,9 @@
 import { Command } from 'commander';
 import ora, { type Ora } from 'ora';
+import { writeFileSync } from 'fs';
 import { getAuthenticatedClient } from '../lib/auth.ts';
 import { error, formatChannelList, formatConversationHistory } from '../lib/formatter.ts';
+import { parseSince, dateToSlackTs, slackTsToIso } from '../lib/since.ts';
 import { parseVttToText } from '../lib/vtt-parser.ts';
 import type { SlackChannel, SlackMessage, SlackUser } from '../types/index.ts';
 import type { SlackClient } from '../lib/slack-client.ts';
@@ -68,18 +70,28 @@ export function createConversationsCommand(): Command {
     .option('--exclude-replies', 'Exclude threaded replies (only top-level messages)', false)
     .option('--limit <number>', 'Number of messages to return', '20')
     .option('--oldest-first', 'Return messages oldest-first (default is newest-first)', false)
-    .option('--oldest <timestamp>', 'Start of time range')
+    .option('--oldest <timestamp>', 'Start of time range (raw Slack ts)')
     .option('--latest <timestamp>', 'End of time range')
+    .option('--since <when>', 'Only messages newer than this: ISO date/datetime (2026-07-01), duration (36h, 7d, 2w), or working days (7wd). Sets --oldest for you and, unless --limit is passed explicitly, paginates until the whole window is covered')
     .option('--workspace <id|name>', 'Workspace to use')
     .option('--json', 'Output in JSON format (includes timestamps for replies)', false)
     .option('--include-transcripts', 'Include video transcripts in output', true)
     .option('--no-include-transcripts', 'Exclude video transcripts from output')
     .option('--include-threads', 'Expand and include thread replies inline', false)
-    .action(async (channelId, options) => {
+    .option('--output <file>', 'Write output to a file instead of stdout (large JSON piped through shells can get truncated)')
+    .action(async (channelId, options, command) => {
       const spinner = ora('Fetching messages...').start();
 
       try {
         const client = await getAuthenticatedClient(options.workspace);
+
+        let oldest: string | undefined = options.oldest;
+        if (options.since) {
+          if (options.oldest) {
+            throw new Error('--since and --oldest are mutually exclusive');
+          }
+          oldest = dateToSlackTs(parseSince(options.since));
+        }
 
         let response: any;
         let messages: SlackMessage[];
@@ -89,19 +101,32 @@ export function createConversationsCommand(): Command {
           spinner.text = 'Fetching thread replies...';
           response = await client.getConversationReplies(channelId, options.threadTs, {
             limit: parseInt(options.limit),
-            oldest: options.oldest,
+            oldest,
             latest: options.latest,
           });
           messages = response.messages || [];
         } else {
-          // Fetch conversation history
+          // Fetch conversation history. With --since (and no explicit
+          // --limit) paginate until the whole window is covered, so the
+          // default page size can never silently drop messages.
           spinner.text = 'Fetching conversation history...';
-          response = await client.getConversationHistory(channelId, {
-            limit: parseInt(options.limit),
-            oldest: options.oldest,
-            latest: options.latest,
-          });
-          messages = response.messages || [];
+          const paginate = Boolean(options.since) && command.getOptionValueSource('limit') !== 'cli';
+          const pageLimit = paginate ? 200 : parseInt(options.limit);
+          messages = [];
+          let cursor: string | undefined;
+          do {
+            response = await client.getConversationHistory(channelId, {
+              limit: pageLimit,
+              oldest,
+              latest: options.latest,
+              cursor,
+            });
+            messages.push(...(response.messages || []));
+            cursor = response.response_metadata?.next_cursor || undefined;
+            if (paginate && cursor) {
+              spinner.text = `Fetching conversation history... (${messages.length} so far)`;
+            }
+          } while (paginate && cursor && messages.length < 5000);
 
           // Filter out replies if requested
           if (options.excludeReplies) {
@@ -143,12 +168,38 @@ export function createConversationsCommand(): Command {
 
         spinner.succeed(`Found ${messages.length} messages`);
 
+        // Write to --output file or stdout
+        const emit = (content: string) => {
+          if (options.output) {
+            writeFileSync(options.output, content);
+            console.error(`Wrote ${Buffer.byteLength(content)} bytes to ${options.output}`);
+          } else {
+            console.log(content);
+          }
+        };
+
         // Output in JSON format if requested
         if (options.json) {
-          const formatMessageForJson = (msg: SlackMessage) => ({
+          const workspaceUrl = client.getWorkspaceUrl();
+          const permalinkFor = (ts: string, threadTs?: string): string | null => {
+            if (!workspaceUrl) return null;
+            const base = `${workspaceUrl}/archives/${channelId}/p${ts.replace('.', '')}`;
+            return threadTs && threadTs !== ts
+              ? `${base}?thread_ts=${threadTs}&cid=${channelId}`
+              : base;
+          };
+          const userNameFor = (id?: string): string | null => {
+            if (!id) return null;
+            const u = users.get(id);
+            return u?.real_name || u?.name || null;
+          };
+          const formatMessageForJson = (msg: SlackMessage, parentTs?: string): any => ({
             ts: msg.ts,
+            ts_iso: slackTsToIso(msg.ts),
             thread_ts: msg.thread_ts,
             user: msg.user,
+            user_name: userNameFor(msg.user),
+            permalink: permalinkFor(msg.ts, parentTs ?? (msg.thread_ts !== msg.ts ? msg.thread_ts : undefined)),
             text: msg.text,
             type: msg.type,
             reply_count: msg.reply_count,
@@ -157,13 +208,14 @@ export function createConversationsCommand(): Command {
             bot_id: msg.bot_id,
             files: msg.files,
             transcript: msg.transcript,
-            thread_replies: msg.thread_replies?.map(formatMessageForJson) ?? null,
+            thread_replies: msg.thread_replies?.map(r => formatMessageForJson(r, msg.ts)) ?? null,
           });
 
-          console.log(JSON.stringify({
+          emit(JSON.stringify({
             channel_id: channelId,
             message_count: messages.length,
-            messages: messages.map(formatMessageForJson),
+            since: options.since ? { spec: options.since, oldest_ts: oldest } : undefined,
+            messages: messages.map(m => formatMessageForJson(m)),
             users: Array.from(users.values()).map(u => ({
               id: u.id,
               name: u.name,
@@ -172,7 +224,7 @@ export function createConversationsCommand(): Command {
             })),
           }, null, 2));
         } else {
-          console.log('\n' + formatConversationHistory(channelId, messages, users, options.includeThreads));
+          emit('\n' + formatConversationHistory(channelId, messages, users, options.includeThreads));
         }
       } catch (err: any) {
         spinner.fail('Failed to fetch messages');
