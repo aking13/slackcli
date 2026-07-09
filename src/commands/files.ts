@@ -5,11 +5,13 @@ import { join, basename } from 'path';
 import { getAuthenticatedClient } from '../lib/auth.ts';
 import { success, error, info, warning, formatFileList, formatFileSize, getFileIcon } from '../lib/formatter.ts';
 import { parseVttToText } from '../lib/vtt-parser.ts';
+import { pickMessageFile } from '../lib/message-file.ts';
 import type { SlackFile, SlackUser } from '../types/index.ts';
 
 // Resolve a file id from an exact channel+ts. Never falls back to a different
-// message — a wrong-media result is worse than a loud failure. For a thread
-// reply, pass threadTs (the parent) so the whole thread is searched.
+// message — a wrong-media result is worse than a loud failure (the exact-ts
+// selection lives in pickMessageFile). For a thread reply, pass threadTs (the
+// parent) so the whole thread is paginated until the ts is found.
 async function resolveFileIdFromMessage(
   client: any,
   channel: string,
@@ -30,14 +32,14 @@ async function resolveFileIdFromMessage(
     const res = await client.getConversationHistory(channel, { latest: ts, oldest: ts, inclusive: true, limit: 1 });
     messages = res.messages || [];
   }
-  const msg = messages.find((m: any) => m.ts === ts);
-  if (!msg) {
+  const picked = pickMessageFile(messages, ts);
+  if (picked.status === 'no-message') {
     throw new Error(`message ${ts} not found in ${channel} (searched ${messages.length}). For a thread reply pass --thread-ts <parent>, or use --file.`);
   }
-  const files = msg.files || [];
-  const file = files.find((f: any) => (f.mimetype || '').startsWith('video/')) || files[0];
-  if (!file) throw new Error(`message ${ts} in ${channel} has no attached file`);
-  return file.id;
+  if (picked.status === 'no-file') {
+    throw new Error(`message ${ts} in ${channel} has no attached file`);
+  }
+  return picked.file.id;
 }
 
 export function createFilesCommand(): Command {
