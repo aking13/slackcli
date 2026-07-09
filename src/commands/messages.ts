@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import ora from 'ora';
 import { getAuthenticatedClient } from '../lib/auth.ts';
+import { requireExplicitWorkspace } from '../lib/workspaces.ts';
 import { success, error } from '../lib/formatter.ts';
 
 export function createMessagesCommand(): Command {
@@ -15,8 +16,9 @@ export function createMessagesCommand(): Command {
     .requiredOption('--message <text>', 'Message text content')
     .option('--thread-ts <timestamp>', 'Send as reply to thread')
     .option('--file <path>', 'Attach a file to the message')
-    .option('--workspace <id|name>', 'Workspace to use')
+    .option('--workspace <id|name>', 'Workspace to use (required when more than one workspace is authenticated)')
     .action(async (options) => {
+      await requireExplicitWorkspace(options.workspace);
       const spinner = ora('Sending message...').start();
 
       try {
@@ -63,8 +65,9 @@ export function createMessagesCommand(): Command {
     .requiredOption('--channel-id <id>', 'Channel ID where the message is')
     .requiredOption('--timestamp <ts>', 'Message timestamp')
     .requiredOption('--emoji <name>', 'Emoji name without colons (e.g., thumbsup, heart, fire)')
-    .option('--workspace <id|name>', 'Workspace to use')
+    .option('--workspace <id|name>', 'Workspace to use (required when more than one workspace is authenticated)')
     .action(async (options) => {
+      await requireExplicitWorkspace(options.workspace);
       const spinner = ora('Adding reaction...').start();
 
       try {
@@ -88,8 +91,9 @@ export function createMessagesCommand(): Command {
     .requiredOption('--channel-id <id>', 'Channel ID where the message is')
     .requiredOption('--timestamp <ts>', 'Message timestamp')
     .requiredOption('--emoji <name>', 'Emoji name without colons (e.g., thumbsup, heart, fire)')
-    .option('--workspace <id|name>', 'Workspace to use')
+    .option('--workspace <id|name>', 'Workspace to use (required when more than one workspace is authenticated)')
     .action(async (options) => {
+      await requireExplicitWorkspace(options.workspace);
       const spinner = ora('Removing reaction...').start();
 
       try {

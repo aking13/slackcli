@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { getAuthenticatedClient } from '../lib/auth.ts';
+import { requireExplicitWorkspace } from '../lib/workspaces.ts';
 import { success, error } from '../lib/formatter.ts';
 
 export function createDraftsCommand(): Command {
@@ -86,6 +87,7 @@ export function createDraftsCommand(): Command {
     .requiredOption('--text <text>', 'Draft message text')
     .option('--workspace <id|name>', 'Workspace to use')
     .action(async (options) => {
+      await requireExplicitWorkspace(options.workspace);
       const spinner = ora('Creating draft...').start();
 
       try {
@@ -116,6 +118,7 @@ export function createDraftsCommand(): Command {
     .requiredOption('--draft-id <id>', 'Draft ID to delete')
     .option('--workspace <id|name>', 'Workspace to use')
     .action(async (options) => {
+      await requireExplicitWorkspace(options.workspace);
       const spinner = ora('Deleting draft...').start();
 
       try {
