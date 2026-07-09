@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   message fidelity.
 
 ### Changed
+- **Friendlier draft errors**: `drafts create` now translates Slack's raw
+  `attached_draft_exists` code (Slack allows only one draft per thread) into a
+  plain-language message and a hint pointing at `drafts list` / `drafts delete`,
+  instead of surfacing the raw API code.
 - Bumped `@slack/web-api` from `^7.11.0` to `^7.15.2` (resolves to 7.19.0), aligning
   with upstream and refreshing transitive dependencies (axios, follow-redirects) to
   their current releases.
