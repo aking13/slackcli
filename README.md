@@ -161,6 +161,9 @@ slackcli messages send --recipient-id=U9876543210 --message="Hey there!"
 # Reply to a thread
 slackcli messages send --recipient-id=C1234567890 --thread-ts=1234567890.123456 --message="Great idea!"
 
+# Attach a file (the --message becomes the file's comment)
+slackcli messages send --recipient-id=C1234567890 --file=./report.pdf --message="Here's the report"
+
 # Add an emoji reaction to a message
 slackcli messages react --channel-id=C1234567890 --timestamp=1234567890.123456 --emoji=thumbsup
 
