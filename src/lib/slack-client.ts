@@ -389,9 +389,12 @@ export class SlackClient {
   }
 
   // Create a draft (browser auth only)
+  // Pass threadTs (the parent message's ts) to place the draft inside a thread;
+  // Slack carries the threading on the destination object, not as a top-level param.
   async createDraft(options: {
     channelId: string;
     text: string;
+    threadTs?: string;
   }): Promise<any> {
     if (this.config.auth_type !== 'browser') {
       throw new Error('Drafts API requires browser authentication (xoxc/xoxd tokens)');
@@ -413,7 +416,9 @@ export class SlackClient {
       }]
     }]);
 
-    const destinations = JSON.stringify([{ channel_id: options.channelId }]);
+    const destination: Record<string, any> = { channel_id: options.channelId };
+    if (options.threadTs) destination.thread_ts = options.threadTs;
+    const destinations = JSON.stringify([destination]);
 
     return this.request('drafts.create', {
       blocks,

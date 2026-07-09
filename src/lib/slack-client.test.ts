@@ -3,7 +3,7 @@ import { writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { SlackClient } from './slack-client.ts';
-import type { BrowserAuthConfig } from '../types/index.ts';
+import type { BrowserAuthConfig, StandardAuthConfig } from '../types/index.ts';
 
 const browserConfig: BrowserAuthConfig = {
   workspace_id: 'T123',
@@ -117,6 +117,58 @@ describe('SlackClient uploadFileExternal', () => {
     await expect(
       client.uploadFileExternal('C123', join(tmpdir(), 'slackcli-does-not-exist-xyz.txt')),
     ).rejects.toThrow('File not found');
+    expect(requestCalled).toBe(false);
+  });
+});
+
+describe('SlackClient createDraft', () => {
+  it('calls drafts.create with a destination carrying only the channel when no thread is given', async () => {
+    const { client, calls } = clientWithCapturedRequest();
+
+    await client.createDraft({ channelId: 'D08PRF1T8BE', text: 'hello' });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe('drafts.create');
+    expect(JSON.parse(calls[0].params.destinations)).toEqual([{ channel_id: 'D08PRF1T8BE' }]);
+    // The text is carried inside the rich_text block, not as a top-level param.
+    const blocks = JSON.parse(calls[0].params.blocks);
+    expect(blocks[0].elements[0].elements[0].text).toBe('hello');
+  });
+
+  it('threads the draft by putting thread_ts on the destination when provided', async () => {
+    const { client, calls } = clientWithCapturedRequest();
+
+    await client.createDraft({
+      channelId: 'D08PRF1T8BE',
+      text: 'threaded reply',
+      threadTs: '1783528413.764109',
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].method).toBe('drafts.create');
+    expect(JSON.parse(calls[0].params.destinations)).toEqual([
+      { channel_id: 'D08PRF1T8BE', thread_ts: '1783528413.764109' },
+    ]);
+  });
+
+  it('requires browser authentication', async () => {
+    const standardConfig: StandardAuthConfig = {
+      workspace_id: 'T123',
+      workspace_name: 'test',
+      auth_type: 'standard',
+      token: 'xoxb-test',
+      token_type: 'bot',
+    };
+    const client = new SlackClient(standardConfig);
+    let requestCalled = false;
+    client.request = async () => {
+      requestCalled = true;
+      return { ok: true };
+    };
+
+    await expect(
+      client.createDraft({ channelId: 'C123', text: 'nope' }),
+    ).rejects.toThrow('browser authentication');
     expect(requestCalled).toBe(false);
   });
 });

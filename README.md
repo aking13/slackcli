@@ -204,6 +204,33 @@ slackcli files download-all --channel C1234567890 --types images --output ./down
 > Slack to finish. Only videos where `is_transcription_region_supported` is true
 > can be transcribed.
 
+### Draft Commands
+
+Drafts require **browser authentication** (xoxd/xoxc). They are created in your
+Slack drafts — unsent and visible only to you — so you can review, edit, and send
+them from any Slack client.
+
+```bash
+# Create a draft in a channel or DM
+slackcli drafts create --channel-id=D08PRF1T8BE --text="Draft I'll send later"
+
+# Create the draft as a reply inside a thread — pass the parent message's ts.
+# Without --thread-ts the draft lands at the top level of the conversation.
+slackcli drafts create --channel-id=D08PRF1T8BE --text="Threaded reply" \
+  --thread-ts=1783528413.764109
+
+# List your active drafts (--all also shows sent/deleted ones)
+slackcli drafts list
+slackcli drafts list --all
+
+# Delete a draft by ID
+slackcli drafts delete --draft-id=Dr0BGD4BT941
+```
+
+> Threading lives on the draft's destination, mirroring how Slack's own composer
+> stores a threaded draft — so the draft opens already scoped to the thread when
+> you go to send it.
+
 ### Update Commands
 
 ```bash

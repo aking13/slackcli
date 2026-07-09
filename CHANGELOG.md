@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Threaded drafts**: `drafts create --thread-ts <ts>` creates a draft as a reply
+  inside a thread, passing the parent's timestamp on the draft destination (the same
+  shape Slack's composer uses). Backed by an optional `threadTs` on
+  `SlackClient.createDraft`. Previously a threaded draft could only be made by calling
+  the raw `drafts.create` API by hand.
 - **Message reactions**: `messages react` adds an emoji reaction to a message and
   `messages unreact` removes one (backported from upstream `shaharia-lab/slackcli`).
   Works with both standard and browser authentication.
