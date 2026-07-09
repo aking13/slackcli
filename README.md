@@ -219,6 +219,12 @@ slackcli drafts create --channel-id=D08PRF1T8BE --text="Draft I'll send later"
 slackcli drafts create --channel-id=D08PRF1T8BE --text="Threaded reply" \
   --thread-ts=1783528413.764109
 
+# Attach files to the draft — repeat --file per attachment. Each file is
+# uploaded UNSHARED (not posted to the channel), so nothing appears until you
+# send the draft yourself.
+slackcli drafts create --channel-id=D08PRF1T8BE --text="Draft with screenshots" \
+  --file=/tmp/before.png --file=/tmp/after.png
+
 # List your active drafts (--all also shows sent/deleted ones)
 slackcli drafts list
 slackcli drafts list --all
@@ -230,6 +236,10 @@ slackcli drafts delete --draft-id=Dr0BGD4BT941
 > Threading lives on the draft's destination, mirroring how Slack's own composer
 > stores a threaded draft — so the draft opens already scoped to the thread when
 > you go to send it.
+>
+> Attachments are uploaded via `files.getUploadURLExternal` and completed
+> **without** a `channel_id`, so the file exists in Slack but is not shared to
+> any conversation — it only becomes visible when you send the draft.
 
 ### Update Commands
 
