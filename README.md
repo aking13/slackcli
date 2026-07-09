@@ -160,7 +160,17 @@ slackcli messages send --recipient-id=U9876543210 --message="Hey there!"
 
 # Reply to a thread
 slackcli messages send --recipient-id=C1234567890 --thread-ts=1234567890.123456 --message="Great idea!"
+
+# Add an emoji reaction to a message
+slackcli messages react --channel-id=C1234567890 --timestamp=1234567890.123456 --emoji=thumbsup
+
+# Remove an emoji reaction from a message
+slackcli messages unreact --channel-id=C1234567890 --timestamp=1234567890.123456 --emoji=thumbsup
 ```
+
+> Tip: emoji names are the Slack shortcode without colons (e.g. `thumbsup`, `heart`, `tada`).
+> To read the reactions already on a message, use `conversations read` — reactions appear in
+> the human-readable output and in the `--json` output.
 
 ### Update Commands
 

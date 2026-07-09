@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Message reactions**: `messages react` adds an emoji reaction to a message and
+  `messages unreact` removes one (backported from upstream `shaharia-lab/slackcli`).
+  Works with both standard and browser authentication.
+- `addReaction` and `removeReaction` methods on `SlackClient`.
+- `blocks` and `attachments` fields in `conversations read --json` output for higher
+  message fidelity.
+
+### Changed
+- Bumped `@slack/web-api` from `^7.11.0` to `^7.15.2` to pick up transitive security
+  fixes (axios / follow-redirects advisories).
+
+### Security
+- Dependency upgrade above addresses known CVEs in `@slack/web-api`'s transitive deps.
+
 ## [0.1.1] - 2025-11-09
 
 ### Added

@@ -181,6 +181,24 @@ export class SlackClient {
     return this.request('conversations.open', { users });
   }
 
+  // Add a reaction (emoji) to a message
+  async addReaction(channel: string, timestamp: string, name: string): Promise<any> {
+    return this.request('reactions.add', {
+      channel,
+      timestamp,
+      name,
+    });
+  }
+
+  // Remove a reaction (emoji) from a message
+  async removeReaction(channel: string, timestamp: string, name: string): Promise<any> {
+    return this.request('reactions.remove', {
+      channel,
+      timestamp,
+      name,
+    });
+  }
+
   // List files
   async listFiles(options: {
     channel?: string;
