@@ -5,6 +5,22 @@ import { getAuthenticatedClient } from '../lib/auth.ts';
 import { requireExplicitWorkspace } from '../lib/workspaces.ts';
 import { success, error } from '../lib/formatter.ts';
 
+// Map a raw Slack error into a friendlier CLI message + hint, or null to fall
+// back to the raw message. Kept pure (string in, strings out) so it can be
+// unit-tested without touching the network or Commander.
+export function describeDraftError(message: unknown): { message: string; hint: string } | null {
+  if (typeof message !== 'string') return null;
+  // Slack allows only one draft per thread; a second create on the same thread
+  // comes back as the raw code `attached_draft_exists`.
+  if (message.includes('attached_draft_exists')) {
+    return {
+      message: 'This thread already has a draft — Slack allows only one draft per thread.',
+      hint: 'Edit or send the existing draft, or delete it first: run "drafts list" to find its ID, then "drafts delete --draft-id <id>".',
+    };
+  }
+  return null;
+}
+
 export function createDraftsCommand(): Command {
   const drafts = new Command('drafts')
     .description('Manage message drafts (requires browser auth)');
@@ -126,6 +142,11 @@ export function createDraftsCommand(): Command {
         }
       } catch (err: any) {
         spinner.stop();
+        const friendly = describeDraftError(err.message);
+        if (friendly) {
+          error(friendly.message, friendly.hint);
+          return;
+        }
         error(`Error: ${err.message}`);
       }
     });

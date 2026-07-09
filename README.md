@@ -240,6 +240,10 @@ slackcli drafts delete --draft-id=Dr0BGD4BT941
 > Attachments are uploaded via `files.getUploadURLExternal` and completed
 > **without** a `channel_id`, so the file exists in Slack but is not shared to
 > any conversation — it only becomes visible when you send the draft.
+>
+> Slack allows only **one draft per thread**. Creating a second draft on a thread
+> that already has one fails with a clear message — edit or delete the existing
+> draft (`drafts list` → `drafts delete --draft-id <id>`) first.
 
 ### Update Commands
 
