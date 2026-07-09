@@ -85,6 +85,7 @@ export function createDraftsCommand(): Command {
     .description('Create a new draft')
     .requiredOption('--channel-id <id>', 'Channel ID to create draft for')
     .requiredOption('--text <text>', 'Draft message text')
+    .option('--thread-ts <timestamp>', "Create the draft as a reply in a thread (the parent message's ts)")
     .option('--workspace <id|name>', 'Workspace to use')
     .action(async (options) => {
       await requireExplicitWorkspace(options.workspace);
@@ -95,6 +96,7 @@ export function createDraftsCommand(): Command {
         const response = await client.createDraft({
           channelId: options.channelId,
           text: options.text,
+          threadTs: options.threadTs,
         });
 
         spinner.stop();
