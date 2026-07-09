@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import ora from 'ora';
 import { getAuthenticatedClient } from '../lib/auth.ts';
+import { requireExplicitWorkspace } from '../lib/workspaces.ts';
 import { success, error } from '../lib/formatter.ts';
 
 export function createMessagesCommand(): Command {
@@ -14,8 +15,9 @@ export function createMessagesCommand(): Command {
     .requiredOption('--recipient-id <id>', 'Channel ID or User ID')
     .requiredOption('--message <text>', 'Message text content')
     .option('--thread-ts <timestamp>', 'Send as reply to thread')
-    .option('--workspace <id|name>', 'Workspace to use')
+    .option('--workspace <id|name>', 'Workspace to use (required when more than one workspace is authenticated)')
     .action(async (options) => {
+      await requireExplicitWorkspace(options.workspace);
       const spinner = ora('Sending message...').start();
 
       try {

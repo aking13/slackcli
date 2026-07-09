@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile, exists } from 'fs/promises';
 import { join } from 'path';
 import { homedir } from 'os';
 import type { WorkspacesData, WorkspaceConfig } from '../types/index.ts';
+import { error } from './formatter.ts';
 
 const CONFIG_DIR = join(homedir(), '.config', 'slackcli');
 const WORKSPACES_FILE = join(CONFIG_DIR, 'workspaces.json');
@@ -123,3 +124,22 @@ export async function getDefaultWorkspaceId(): Promise<string | undefined> {
   return data.default_workspace;
 }
 
+// Writes (sending a message, creating/deleting a draft) are workspace-
+// specific. When more than one workspace is authenticated, refuse to silently
+// fall back to the default and require an explicit --workspace so the target
+// is never ambiguous. No-op with a single workspace or when --workspace is
+// provided.
+export async function requireExplicitWorkspace(workspace?: string): Promise<void> {
+  if (workspace) {
+    return;
+  }
+  const workspaces = await getAllWorkspaces();
+  if (workspaces.length > 1) {
+    error(
+      'Multiple workspaces are authenticated, so --workspace <id|name> is '
+      + 'required. Available: '
+      + workspaces.map((w) => `${w.workspace_name} (${w.workspace_id})`).join(', ')
+    );
+    process.exit(1);
+  }
+}
