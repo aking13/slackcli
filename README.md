@@ -175,6 +175,35 @@ slackcli messages unreact --channel-id=C1234567890 --timestamp=1234567890.123456
 > To read the reactions already on a message, use `conversations read` — reactions appear in
 > the human-readable output and in the `--json` output.
 
+### File Commands
+
+```bash
+# Get a video's transcript — GENERATES it if Slack hasn't yet, then prints it.
+# Slack does not auto-transcribe DM/channel videos: until the "Generate
+# transcript" button (the files.retranscribe API) is hit, transcription.status
+# stays "none" with no transcript. This command triggers it, waits, and prints.
+slackcli files transcript --file F0BG53QCYUU
+slackcli files transcript --file F0BG53QCYUU --json      # {file_id, status, transcript}
+
+# Resolve the file from a message instead of a file id; for a thread reply,
+# pass the parent --thread-ts. Matches the EXACT ts (never a different message).
+slackcli files transcript --channel D08PRF1T8BE --ts 1783532497.537739 \
+  --thread-ts 1783528413.764109
+
+# Only print an already-generated transcript (don't trigger generation):
+slackcli files transcript --file F0BG53QCYUU --no-generate
+
+# Read file content (VTT/text), download a file, or list/batch-download files
+slackcli files read --url "<url_private_download>"
+slackcli files download --url "<url_private_download>" --output ./out.mp4
+slackcli files list --channel C1234567890 --types videos --json
+slackcli files download-all --channel C1234567890 --types images --output ./downloads
+```
+
+> `--timeout <seconds>` (default 120) bounds how long `transcript` waits for
+> Slack to finish. Only videos where `is_transcription_region_supported` is true
+> can be transcribed.
+
 ### Update Commands
 
 ```bash
