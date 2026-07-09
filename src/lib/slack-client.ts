@@ -277,6 +277,18 @@ export class SlackClient {
     return this.request('files.list', params);
   }
 
+  // Get metadata for a single file (includes transcription status + vtt url)
+  async getFileInfo(fileId: string): Promise<any> {
+    return this.request('files.info', { file: fileId });
+  }
+
+  // Trigger (or re-trigger) transcription for a video file. This is the API
+  // the "Generate transcript" button calls; Slack does not auto-transcribe
+  // DM/channel videos, so transcription.status stays "none" until this runs.
+  async retranscribeFile(fileId: string): Promise<any> {
+    return this.request('files.retranscribe', { file_id: fileId });
+  }
+
   // Search messages
   async searchMessages(query: string, options: {
     count?: number;
