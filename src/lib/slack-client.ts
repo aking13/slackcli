@@ -1,6 +1,6 @@
 import { WebClient } from '@slack/web-api';
 import { basename } from 'node:path';
-import { readFile, stat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import type { WorkspaceConfig, SlackAuthTestResponse } from '../types/index.ts';
 
 interface ExternalUploadUrlResponse {
@@ -187,13 +187,15 @@ export class SlackClient {
       throw new Error('Slack API error: missing upload URL or file ID');
     }
 
-    const fileBytes = await readFile(filePath);
+    // Stream the file straight from disk rather than buffering the whole
+    // attachment into memory. Bun.file has a known size, so fetch sets
+    // Content-Length correctly for the presigned upload.
     const uploadResponse = await fetch(uploadUrlResponse.upload_url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/octet-stream',
       },
-      body: fileBytes,
+      body: Bun.file(filePath),
     });
 
     if (!uploadResponse.ok) {

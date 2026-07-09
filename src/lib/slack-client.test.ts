@@ -71,14 +71,21 @@ describe('SlackClient uploadFileExternal', () => {
     };
 
     let fetchedUrl: string | undefined;
+    let fetchInit: RequestInit | undefined;
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = (async (url: string) => {
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
       fetchedUrl = url;
+      fetchInit = init;
       return { ok: true, status: 200 } as Response;
     }) as typeof fetch;
 
+    let sentBody: string | undefined;
     try {
       await client.uploadFileExternal('C123', tmp, { initial_comment: 'caption', thread_ts: '1.1' });
+      // Read back whatever was handed to fetch as the body to prove the real
+      // file bytes are streamed (Bun.file exposes .text()).
+      const body: any = fetchInit?.body;
+      sentBody = typeof body?.text === 'function' ? await body.text() : new TextDecoder().decode(body);
     } finally {
       globalThis.fetch = originalFetch;
       rmSync(tmp);
@@ -88,6 +95,10 @@ describe('SlackClient uploadFileExternal', () => {
     expect(calls[0].params.filename).toBe(basename(tmp));
     expect(calls[0].params.length).toBe(10);
     expect(fetchedUrl).toBe('https://files.slack.com/upload/abc');
+    // The upload must be a POST that carries the actual file content.
+    expect(fetchInit?.method).toBe('POST');
+    expect((fetchInit?.headers as Record<string, string>)['Content-Type']).toBe('application/octet-stream');
+    expect(sentBody).toBe('hello file');
     expect(calls[1].method).toBe('files.completeUploadExternal');
     expect(calls[1].params.channel_id).toBe('C123');
     expect(calls[1].params.initial_comment).toBe('caption');
