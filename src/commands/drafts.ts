@@ -86,6 +86,12 @@ export function createDraftsCommand(): Command {
     .requiredOption('--channel-id <id>', 'Channel ID to create draft for')
     .requiredOption('--text <text>', 'Draft message text')
     .option('--thread-ts <timestamp>', "Create the draft as a reply in a thread (the parent message's ts)")
+    .option(
+      '--file <path>',
+      'Attach a file to the draft (repeatable). Uploaded unshared, so nothing is posted.',
+      (val: string, acc: string[]) => { acc.push(val); return acc; },
+      [] as string[],
+    )
     .option('--workspace <id|name>', 'Workspace to use')
     .action(async (options) => {
       await requireExplicitWorkspace(options.workspace);
@@ -93,10 +99,21 @@ export function createDraftsCommand(): Command {
 
       try {
         const client = await getAuthenticatedClient(options.workspace);
+
+        // Upload any attachments first (unshared — not posted to the channel),
+        // then reference their file ids on the draft.
+        const fileIds: string[] = [];
+        for (const path of (options.file as string[])) {
+          spinner.text = `Uploading ${path}...`;
+          fileIds.push(await client.uploadUnsharedFile(path));
+        }
+
+        spinner.text = 'Creating draft...';
         const response = await client.createDraft({
           channelId: options.channelId,
           text: options.text,
           threadTs: options.threadTs,
+          fileIds,
         });
 
         spinner.stop();

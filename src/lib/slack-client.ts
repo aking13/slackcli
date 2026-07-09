@@ -388,13 +388,59 @@ export class SlackClient {
     return this.request('drafts.list', params);
   }
 
+  // Upload a file WITHOUT sharing it to any channel, so it can be attached to a
+  // draft. Same flow as uploadFileExternal but completeUploadExternal is called
+  // with no channel_id, so the file is created but not posted anywhere. Returns
+  // the Slack file id (for createDraft's fileIds).
+  async uploadUnsharedFile(filePath: string): Promise<string> {
+    // This method exists only for draft attachments, which are browser-auth
+    // only. Enforce that up front so a standard-auth workspace fails before any
+    // file is uploaded — otherwise the upload would succeed and the subsequent
+    // createDraft would throw, orphaning an unshared file in Slack.
+    if (this.config.auth_type !== 'browser') {
+      throw new Error('Drafts API requires browser authentication (xoxc/xoxd tokens)');
+    }
+    const fileStats = await stat(filePath).catch((error: unknown) => {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        throw new Error(`File not found: ${filePath}`);
+      }
+      throw error;
+    });
+    if (!fileStats.isFile()) throw new Error(`Cannot upload non-file path: ${filePath}`);
+    if (fileStats.size === 0) throw new Error(`Cannot upload empty file: ${filePath}`);
+
+    const filename = basename(filePath);
+    const uploadUrlResponse = await this.request('files.getUploadURLExternal', {
+      filename,
+      length: fileStats.size,
+    }) as ExternalUploadUrlResponse;
+    if (!uploadUrlResponse.upload_url || !uploadUrlResponse.file_id) {
+      throw new Error('Slack API error: missing upload URL or file ID');
+    }
+
+    const uploadResponse = await fetch(uploadUrlResponse.upload_url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: Bun.file(filePath),
+    });
+    if (!uploadResponse.ok) throw new Error(`File upload failed: HTTP ${uploadResponse.status}`);
+
+    // No channel_id -> uploaded but unshared (not posted to any conversation).
+    await this.request('files.completeUploadExternal', {
+      files: JSON.stringify([{ id: uploadUrlResponse.file_id, title: filename }]),
+    });
+    return uploadUrlResponse.file_id;
+  }
+
   // Create a draft (browser auth only)
   // Pass threadTs (the parent message's ts) to place the draft inside a thread;
   // Slack carries the threading on the destination object, not as a top-level param.
+  // Pass fileIds (from uploadUnsharedFile) to attach files to the draft.
   async createDraft(options: {
     channelId: string;
     text: string;
     threadTs?: string;
+    fileIds?: string[];
   }): Promise<any> {
     if (this.config.auth_type !== 'browser') {
       throw new Error('Drafts API requires browser authentication (xoxc/xoxd tokens)');
@@ -423,7 +469,7 @@ export class SlackClient {
     return this.request('drafts.create', {
       blocks,
       destinations,
-      file_ids: '[]',
+      file_ids: JSON.stringify(options.fileIds ?? []),
       attachments: '',
       is_from_composer: 'false',
       client_msg_id: clientMsgId,
