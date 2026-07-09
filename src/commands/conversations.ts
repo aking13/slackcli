@@ -206,6 +206,8 @@ export function createConversationsCommand(): Command {
             is_thread_parent: (msg.reply_count ?? 0) > 0,
             reactions: msg.reactions,
             bot_id: msg.bot_id,
+            blocks: msg.blocks,
+            attachments: msg.attachments,
             files: msg.files,
             transcript: msg.transcript,
             thread_replies: msg.thread_replies?.map(r => formatMessageForJson(r, msg.ts)) ?? null,
