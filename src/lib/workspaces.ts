@@ -82,6 +82,34 @@ export async function setDefaultWorkspace(workspaceId: string): Promise<void> {
   await saveWorkspaces(data);
 }
 
+// Resolve a workspace by id or name against an already-loaded map. Exact
+// matches win (id key, then name); a case-insensitive id/name match is the
+// fallback so `--workspace launchforce` or a lowercased team id resolves like
+// the canonical form — case never disambiguates two real Slack workspaces, so
+// this only turns a would-be "not found" into the obvious match. Pure, so the
+// resolution rules are unit-tested without touching the config file.
+export function matchWorkspace(
+  workspaces: Record<string, WorkspaceConfig>,
+  identifier: string
+): WorkspaceConfig | null {
+  // Exact id (the map key) wins.
+  if (workspaces[identifier]) {
+    return workspaces[identifier];
+  }
+  const values = Object.values(workspaces);
+  // Then an exact name.
+  const exactName = values.find(w => w.workspace_name === identifier);
+  if (exactName) {
+    return exactName;
+  }
+  // Case-insensitive fallback on id or name.
+  const lower = identifier.toLowerCase();
+  return values.find(
+    w => w.workspace_id.toLowerCase() === lower
+      || w.workspace_name.toLowerCase() === lower
+  ) ?? null;
+}
+
 // Get workspace by ID or name
 export async function getWorkspace(identifier?: string): Promise<WorkspaceConfig | null> {
   const data = await loadWorkspaces();
@@ -94,17 +122,7 @@ export async function getWorkspace(identifier?: string): Promise<WorkspaceConfig
     return data.workspaces[data.default_workspace] || null;
   }
   
-  // Try to find by ID first
-  if (data.workspaces[identifier]) {
-    return data.workspaces[identifier];
-  }
-  
-  // Try to find by name
-  const workspaceByName = Object.values(data.workspaces).find(
-    w => w.workspace_name === identifier
-  );
-  
-  return workspaceByName || null;
+  return matchWorkspace(data.workspaces, identifier);
 }
 
 // Get all workspaces
